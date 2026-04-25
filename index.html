@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="健康助手">
+<meta name="theme-color" content="#2d6a4f">
+<meta name="description" content="健康管理、AI 菜谱规划与训练建议的轻量 PWA。">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<title>健康助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#2d6a4f;--green2:#52b788;--green-pale:#d8f3dc;
+  --gold:#c68f00;--gold-pale:#fff8e6;
+  --bg:#f5f3ef;--card:#fff;--text:#1a1a1a;--text2:#6b7280;
+  --border:#e8e4de;--red:#dc2626;
+  --tab-h:60px;--safe-b:env(safe-area-inset-bottom);--safe-t:env(safe-area-inset-top);
+}
+html,body{height:100%;font-family:-apple-system,'PingFang SC',sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+#app{display:flex;flex-direction:column;height:100dvh;height:100vh}
+
+/* Header */
+header{
+  padding-top:calc(var(--safe-t) + 14px);
+  padding-bottom:12px;padding-left:20px;padding-right:20px;
+  background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+header h1{font-size:20px;font-weight:700;color:var(--text)}
+header p{font-size:12px;color:var(--text2);margin-top:2px}
+
+/* Pages */
+.pages{flex:1;overflow:hidden;position:relative}
+.page{
+  position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(var(--tab-h) + var(--safe-b) + 20px);
+  opacity:0;pointer-events:none;transform:translateY(6px);
+  transition:opacity .2s,transform .2s;
+}
+.page.active{opacity:1;pointer-events:all;transform:translateY(0)}
+
+/* Bottom Nav */
+nav{
+  position:fixed;bottom:0;left:0;right:0;
+  height:calc(var(--tab-h) + var(--safe-b));
+  padding-bottom:var(--safe-b);
+  background:var(--card);border-top:1px solid var(--border);
+  display:flex;z-index:100;
+}
+nav button{
+  flex:1;background:none;border:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;font-size:10px;color:var(--text2);cursor:pointer;
+}
+nav button.active{color:var(--green)}
+nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Card */
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--border)}
+.card-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+
+/* Buttons */
+.btn{width:100%;padding:14px;border-radius:12px;border:none;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn:active{opacity:.78;transform:scale(.98)}
+.btn-primary{background:var(--green);color:#fff}
+.btn-ghost{background:var(--green-pale);color:var(--green)}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.btn-danger{background:transparent;border:1.5px solid var(--red);color:var(--red)}
+.gap{height:10px}
+
+/* Macros row */
+.macros{display:flex;gap:8px;margin-top:10px}
+.macro{flex:1;background:var(--bg);border-radius:10px;padding:10px;text-align:center}
+.macro-v{font-size:18px;font-weight:700}
+.macro-l{font-size:10px;color:var(--text2);margin-top:2px}
+
+/* Recipe grid */
+.recipe-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rcard{background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;cursor:pointer}
+.rcard:active{transform:scale(.96)}
+.rcard-emoji{font-size:40px;text-align:center;padding:16px 0 12px;background:var(--bg)}
+.rcard-body{padding:10px}
+.rcard-name{font-size:13px;font-weight:600;line-height:1.35}
+.rcard-meta{font-size:11px;color:var(--text2);margin-top:4px}
+
+/* Filter tabs */
+.ftabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none}
+.ftabs::-webkit-scrollbar{display:none}
+.ftab{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:none;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--text2);font-family:inherit}
+.ftab.active{background:var(--green);color:#fff;border-color:var(--green)}
+
+/* Tags */
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.tag{background:var(--green-pale);color:var(--green);padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .25s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--card);border-radius:22px 22px 0 0;width:100%;max-height:88vh;overflow-y:auto;padding:0 20px calc(var(--safe-b) + 24px);transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1)}
+.overlay.open .modal{transform:translateY(0)}
+.modal-handle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:14px auto 18px}
+
+/* AI output box */
+.ai-box{background:var(--gold-pale);border:1px solid #f0d070;border-radius:12px;padding:14px;font-size:14px;line-height:1.8;white-space:pre-wrap;word-break:break-word;margin-top:12px}
+
+/* Search */
+.search{width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:15px;background:var(--card);color:var(--text);margin-bottom:12px;outline:none;font-family:inherit}
+.search:focus{border-color:var(--green)}
+
+/* Exercise row */
+.ex-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
+.ex-row:last-child{border-bottom:none}
+.ex-icon{width:38px;height:38px;border-radius:10px;background:var(--green-pale);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+
+/* Meal row */
+.meal-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.meal-row:last-child{border-bottom:none}
+.meal-dot{width:8px;height:8px;border-radius:50%;background:var(--green2);flex-shrink:0}
+
+/* Spinner */
+.spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Calorie display */
+.cal-center{text-align:center;padding:8px 0}
+.cal-big{font-size:42px;font-weight:800;color:var(--green)}
+.cal-sub{font-size:13px;color:var(--text2);margin-top:2px}
+
+/* Settings input */
+.s-label{font-size:13px;color:var(--text2);margin-bottom:5px;display:block}
+.s-input{width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;background:var(--card);color:var(--text);margin-bottom:14px;outline:none;font-family:monospace}
+.s-input:focus{border-color:var(--green)}
+
+/* Chip */
+.chip{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:12px;cursor:pointer;margin:3px;font-family:inherit}
+.chip:active{background:var(--border)}
+
+/* Ingredient textarea */
+.ing-input{width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;background:var(--card);color:var(--text);resize:none;outline:none;font-family:inherit}
+.ing-input:focus{border-color:var(--green)}
+
+/* Empty state */
+.empty{text-align:center;padding:32px 20px;color:var(--text2)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-text{font-size:14px;line-height:1.6}
+
+/* Divider */
+.div{height:1px;background:var(--border);margin:12px 0}
+
+/* Info box */
+.info-box{background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:14px;font-size:13px;color:#92400e;line-height:1.7}
+.install-note{font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px}
+.install-note.ok{color:var(--green);font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Header -->
+<header>
+  <h1 id="h-title">健康助手</h1>
+  <p id="h-sub">让每天都更健康</p>
+</header>
+
+<!-- Pages -->
+<div class="pages">
+
+  <!-- 今日 -->
+  <div class="page active" id="page-today">
+    <div class="card">
+      <div class="card-title">今日热量目标</div>
+      <div class="cal-center">
+        <div class="cal-big" id="cal-num">2100</div>
+        <div class="cal-sub" id="cal-sub">kcal · 增肌维持体重</div>
+      </div>
+      <div class="macros">
+        <div class="macro"><div class="macro-v" id="macro-protein" style="color:var(--green)">158g</div><div class="macro-l">蛋白质</div></div>
+        <div class="macro"><div class="macro-v" id="macro-carbs" style="color:var(--gold)">240g</div><div class="macro-l">碳水</div></div>
+        <div class="macro"><div class="macro-v" id="macro-fat" style="color:#c05010">65g</div><div class="macro-l">脂肪</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">今日餐食</div>
+      <div id="today-meals">
+        <div class="empty">
+          <div class="empty-icon">🍽️</div>
+          <div class="empty-text">还没有今日菜单<br>点下方按钮让 AI 帮你规划</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-day" onclick="genDay()">✨ AI 生成今日三餐</button>
+    <div class="gap"></div>
+    <button class="btn btn-ghost" onclick="openIngModal()">🥦 根据冰箱食材规划</button>
+    <div class="gap"></div>
+
+    <div class="card">
+      <div class="card-title">今日运动</div>
+      <div class="ex-row">
+        <div class="ex-icon">🧘</div>
+        <div>
+          <div style="font-size:14px;font-weight:600">八段锦</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">晨起固定 · 约 20 分钟</div>
+          <div class="tags"><span class="tag">柔韧</span><span class="tag">气血</span><span class="tag">心肺</span></div>
+        </div>
+      </div>
+      <div class="div"></div>
+      <button class="btn btn-outline" style="font-size:14px;padding:10px" onclick="switchTab('exercise')">查看完整运动计划 →</button>
+    </div>
+  </div>
+
+  <!-- 菜谱 -->
+  <div class="page" id="page-recipes">
+    <input class="search" type="search" placeholder="搜索菜谱、食材、标签..." id="q" oninput="filterR()">
+    <div class="ftabs" id="ftabs">
+      <button class="ftab active" onclick="setFilter('all',this)">全部</button>
+      <button class="ftab" onclick="setFilter('breakfast',this)">早餐</button>
+      <button class="ftab" onclick="setFilter('lunch',this)">午餐</button>
+      <button class="ftab" onclick="setFilter('dinner',this)">晚餐</button>
+      <button class="ftab" onclick="setFilter('snack',this)">零食</button>
+    </div>
+    <div class="recipe-grid" id="rgrid"></div>
+  </div>
+
+  <!-- 运动 -->
+  <div class="page" id="page-exercise">
+    <div class="card">
+      <div class="card-title">固定晨练</div>
+      <div class="ex-row">
+        <div class="ex-icon">🧘</div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:600">八段锦</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:3px">传统气功 · 每天早晨 · 约20分钟</div>
+          <div class="tags"><span class="tag">柔韧性</span><span class="tag">气血循环</span><span class="tag">改善体态</span><span class="tag">减压</span></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-ex" onclick="genEx()">🏋️ AI 生成今日补充训练</button>
+    <div id="ex-out"></div>
+  </div>
+
+  <!-- 我的 -->
+  <div class="page" id="page-settings">
+    <div class="card">
+      <div class="card-title">个人档案</div>
+      <label class="s-label">身高 (cm)</label>
+      <input class="s-input" type="number" id="s-h" placeholder="例如 175" style="font-family:inherit">
+      <label class="s-label">体重 (kg)</label>
+      <input class="s-input" type="number" id="s-w" placeholder="例如 70" style="font-family:inherit">
+      <button class="btn btn-ghost" onclick="saveProfile()">保存并重算每日热量</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Gemini API Key</div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:10px;line-height:1.6">在 <strong>aistudio.google.com</strong> 免费获取<br>以 AIzaSy 开头的字符串</p>
+      <input class="s-input" type="password" id="s-key" placeholder="AIzaSy...">
+      <button class="btn btn-primary" onclick="saveKey()">保存 Key</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">安装应用</div>
+      <p class="install-note" id="install-msg">发布后可添加到主屏幕，像原生 App 一样打开。</p>
+      <button class="btn btn-primary" id="install-btn" hidden>⬇️ 安装到主屏幕</button>
+    </div>
+
+    <div class="info-box">
+      <strong>💡 添加到主屏幕</strong><br>
+      Safari → 底部分享按钮 → 「添加到主屏幕」<br>之后就像原生 App 一样使用<br><br>
+      <strong>🔐 隐私说明</strong><br>
+      API Key 只存在你手机本地，菜单和运动数据不上传任何服务器
+    </div>
+    <div class="gap"></div>
+    <button class="btn btn-danger" onclick="clearAll()">清除所有本地数据</button>
+    <div class="gap"></div>
+  </div>
+</div>
+
+<!-- Bottom Nav -->
+<nav>
+  <button class="active" id="tab-today" onclick="switchTab('today')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    今日
+  </button>
+  <button id="tab-recipes" onclick="switchTab('recipes')">
+    <svg viewBox="0 0 24 24"><path d="M12 2C8 2 4 5 4 9c0 5.4 8 13 8 13s8-7.6 8-13c0-4-4-7-8-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+    菜谱
+  </button>
+  <button id="tab-exercise" onclick="switchTab('exercise')">
+    <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M6 8H5a4 4 0 000 8h1"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+    运动
+  </button>
+  <button id="tab-settings" onclick="switchTab('settings')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0112 0v2"/></svg>
+    我的
+  </button>
+</nav>
+
+</div>
+
+<!-- Recipe Modal -->
+<div class="overlay" id="rm" onclick="closeRM(event)">
+  <div class="modal"><div class="modal-handle"></div><div id="rm-body"></div></div>
+</div>
+
+<!-- Ingredient Modal -->
+<div class="overlay" id="im" onclick="closeIM(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 style="font-size:18px;font-weight:700;margin-bottom:6px">根据现有食材规划</h3>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6">告诉 AI 你有什么食材，它会帮你规划今日地中海菜单</p>
+    <textarea class="ing-input" id="ing" rows="3" placeholder="例如：三文鱼、西红柿、鸡蛋、菠菜、全麦面包..."></textarea>
+    <div style="margin-top:10px">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:6px">快速添加：</p>
+      <div id="chips"></div>
+    </div>
+    <div class="gap"></div>
+    <button class="btn btn-primary" id="btn-ing" onclick="genIng()">✨ AI 生成今日菜单</button>
+    <div id="ing-out"></div>
+    <div style="height:20px"></div>
+  </div>
+</div>
+
+<script>
+// ─── 菜谱数据库 ────────────────────────────────────────────
+const RECIPES = [
+  // 早餐
+  {id:1,meal:'breakfast',name:'希腊酸奶蜂蜜坚果碗',emoji:'🥣',time:5,cal:320,protein:18,carbs:28,fat:14,
+   ingredients:['希腊酸奶 200g','天然蜂蜜 1汤匙','核桃 20g','杏仁 10g','新鲜蓝莓 50g'],
+   steps:['希腊酸奶倒入碗中','均匀淋上蜂蜜','撒入核桃和杏仁','放上新鲜蓝莓即可享用'],
+   tags:['高蛋白','5分钟','无需烹饪','肠道友好']},
+
+  {id:2,meal:'breakfast',name:'地中海蔬菜煎蛋',emoji:'🍳',time:12,cal:280,protein:17,carbs:7,fat:21,
+   ingredients:['鸡蛋 3个','新鲜菠菜 50g','小番茄 6个','初榨橄榄油 1汤匙','菲达奶酪 20g','盐·黑胡椒适量'],
+   steps:['橄榄油热锅，下菠菜翻炒至软（约1分钟）','加入对半切开的小番茄，翻炒30秒','打入鸡蛋，中小火煎至喜欢的熟度','撒菲达奶酪碎、盐和黑胡椒出锅'],
+   tags:['高蛋白','低碳水','快手','增肌优选']},
+
+  {id:3,meal:'breakfast',name:'鳄梨全麦吐司',emoji:'🥑',time:8,cal:360,protein:11,carbs:40,fat:18,
+   ingredients:['全麦吐司 2片','熟鳄梨 ½个','新鲜柠檬汁少许','红椒粉少许','盐少许','水煮蛋 1个（可选）'],
+   steps:['全麦吐司放入烤面包机烤至金黄','鳄梨挖出果肉捣成泥，加柠檬汁和盐拌匀','将鳄梨泥厚涂在吐司上','撒红椒粉，放上对半切开的水煮蛋'],
+   tags:['健康脂肪','高纤维','饱腹感强']},
+
+  {id:4,meal:'breakfast',name:'燕麦坚果能量碗',emoji:'🌾',time:10,cal:410,protein:14,carbs:54,fat:16,
+   ingredients:['纯燕麦片 80g','全脂牛奶 200ml','香蕉 ½根','核桃仁 15g','奇亚籽 1茶匙','蜂蜜少许'],
+   steps:['燕麦片加牛奶，小锅煮5分钟（搅拌防粘）','盛入碗，切入香蕉片','撒上核桃仁和奇亚籽','淋少量蜂蜜调味'],
+   tags:['慢碳水','持久饱腹','高纤维','训练前适合']},
+
+  {id:5,meal:'breakfast',name:'番茄橄榄油炒蛋',emoji:'🍅',time:10,cal:260,protein:15,carbs:10,fat:17,
+   ingredients:['鸡蛋 3个','西红柿 2个','初榨橄榄油 1.5汤匙','大蒜 1瓣','盐·黑胡椒适量','新鲜罗勒叶（可选）'],
+   steps:['大蒜切末，橄榄油热锅小火爆香','西红柿切小块下锅，中火炒至出汁（3分钟）','鸡蛋打散倒入，边炒边翻至半凝固','加盐黑胡椒，撒罗勒叶出锅'],
+   tags:['地中海经典','快手','抗氧化']},
+
+  // 午餐
+  {id:6,meal:'lunch',name:'经典希腊沙拉',emoji:'🥗',time:10,cal:280,protein:9,carbs:12,fat:22,
+   ingredients:['罗马生菜 100g','黄瓜 ½根','小番茄 10个','红洋葱 ¼个','卡拉马塔橄榄 30g','菲达奶酪 50g','初榨橄榄油 2汤匙','红酒醋 1汤匙','干牛至适量'],
+   steps:['所有蔬菜洗净，黄瓜切半月形，番茄对半切，洋葱切薄丝','橄榄油+红酒醋+干牛至+盐混合成沙拉汁','蔬菜装盘，放上橄榄和菲达奶酪块','淋沙拉汁，轻轻拌匀即可'],
+   tags:['无需烹饪','低卡','地中海经典','清爽']},
+
+  {id:7,meal:'lunch',name:'鹰嘴豆泥蔬菜拼盘',emoji:'🫘',time:15,cal:330,protein:13,carbs:38,fat:14,
+   ingredients:['熟鹰嘴豆 150g（罐头沥水）','芝麻酱 2汤匙','新鲜柠檬汁 1汤匙','大蒜 1瓣','橄榄油少许','烟熏红椒粉少许','胡萝卜·黄瓜·甜椒各适量（切条）'],
+   steps:['鹰嘴豆+芝麻酱+柠檬汁+蒜+盐放入料理机搅打细腻','若太稠加2汤匙冷水继续打至顺滑','装盘，用橄榄油画圈，撒红椒粉','搭配切条蔬菜蘸食'],
+   tags:['植物蛋白','高纤维','零食·午餐皆宜']},
+
+  {id:8,meal:'lunch',name:'地中海扁豆汤',emoji:'🍲',time:30,cal:380,protein:19,carbs:54,fat:8,
+   ingredients:['红扁豆 150g','胡萝卜 1根','洋葱 ½个','番茄 2个','大蒜 3瓣','橄榄油 1汤匙','孜然 1茶匙','姜黄粉 ½茶匙','菠菜 50g','柠檬汁少许'],
+   steps:['橄榄油热锅，爆香大蒜和洋葱（3分钟）','加入切丁胡萝卜和香料，翻炒1分钟','下番茄丁炒软，加扁豆和600ml水','煮沸后转小火炖20分钟至扁豆软烂','最后加菠菜和柠檬汁，调盐出锅'],
+   tags:['植物蛋白','高纤维','暖胃','备餐友好']},
+
+  {id:9,meal:'lunch',name:'藜麦地中海蔬菜碗',emoji:'🥙',time:25,cal:430,protein:17,carbs:60,fat:14,
+   ingredients:['藜麦 80g','烤甜椒 1个','黄瓜 ½根','小番茄 8个','罐头鹰嘴豆 60g','菲达奶酪 30g','初榨橄榄油 1汤匙','柠檬汁适量','新鲜薄荷叶'],
+   steps:['藜麦按1:2加水，煮沸后小火15分钟至水分收干','甜椒放烤箱200°C烤15分钟，去皮切条','黄瓜切丁，番茄对切','藜麦铺底，蔬菜和鹰嘴豆码放其上','淋橄榄油和柠檬汁，撒菲达奶酪和薄荷叶'],
+   tags:['完整蛋白质','丰盛','备餐友好','增肌适合']},
+
+  {id:10,meal:'lunch',name:'金枪鱼地中海沙拉',emoji:'🐟',time:10,cal:350,protein:30,carbs:12,fat:20,
+   ingredients:['水浸金枪鱼罐头 1罐（约145g）','罗马生菜 80g','番茄 1个','黄瓜 ½根','红洋葱少许','卡拉马塔橄榄 20g','初榨橄榄油 1.5汤匙','柠檬汁少许'],
+   steps:['金枪鱼沥干，用叉子拨散','蔬菜洗净切块，盛入沙拉碗','将金枪鱼和橄榄放在蔬菜上','淋橄榄油和柠檬汁，撒盐黑胡椒'],
+   tags:['高蛋白','无需烹饪','Omega-3','低碳水']},
+
+  {id:11,meal:'lunch',name:'全麦意面番茄罗勒',emoji:'🍝',time:20,cal:490,protein:17,carbs:74,fat:14,
+   ingredients:['全麦意面 80g','熟番茄 3个','大蒜 2瓣','初榨橄榄油 2汤匙','新鲜罗勒叶一把','帕玛森奶酪少许','盐·黑胡椒'],
+   steps:['意面按包装说明煮至 al dente（稍有嚼劲），留一勺煮面水','橄榄油小火爆香切片大蒜（勿焦）','加番茄丁中火煮10分钟至浓缩','意面沥水拌入酱汁，加少许煮面水调稠度','撒罗勒和奶酪即可'],
+   tags:['碳水能量','慢碳水','训练后适合','地中海主食']},
+
+  {id:12,meal:'lunch',name:'烤时蔬橄榄油拌盘',emoji:'🫑',time:30,cal:260,protein:6,carbs:26,fat:16,
+   ingredients:['茄子 ½个','西葫芦 1个','彩椒 2个','红洋葱 ½个','初榨橄榄油 2汤匙','大蒜 2瓣','迷迭香·百里香适量','盐·黑胡椒'],
+   steps:['蔬菜切3cm块，与橄榄油、蒜末、香料、盐混合拌匀','平铺在烤盘，200°C烤25分钟','中途翻面一次使受热均匀','出炉稍凉，撒黑胡椒，可配全麦面包食用'],
+   tags:['低卡','纯素','彩虹营养','抗氧化']},
+
+  // 晚餐
+  {id:13,meal:'dinner',name:'柠檬香草烤三文鱼',emoji:'🐟',time:25,cal:520,protein:43,carbs:6,fat:34,
+   ingredients:['新鲜三文鱼 180g','柠檬 1个','大蒜 2瓣','初榨橄榄油 1汤匙','新鲜迷迭香·百里香适量','盐·黑胡椒'],
+   steps:['三文鱼用橄榄油、蒜末、香草、柠檬汁腌制10分钟','烤箱预热至200°C','三文鱼放烤盘，铺柠檬薄片在表面','烤18-22分钟，鱼肉中心呈半透明即可'],
+   tags:['增肌首选','Omega-3','高蛋白','低碳']},
+
+  {id:14,meal:'dinner',name:'地中海香草烤鸡胸',emoji:'🍗',time:35,cal:450,protein:50,carbs:5,fat:24,
+   ingredients:['鸡胸肉 200g','初榨橄榄油 1.5汤匙','柠檬汁 1汤匙','大蒜 2瓣','干牛至·迷迭香各1茶匙','盐·黑胡椒','小番茄适量（配菜）'],
+   steps:['鸡胸肉厚处用刀划几道，方便入味','所有腌料混合，鸡胸肉腌制20分钟（或冰箱隔夜）','烤箱预热200°C，鸡胸肉和小番茄放烤盘','烤25-30分钟，中途翻面一次'],
+   tags:['极高蛋白','增肌必备','低脂','简单']},
+
+  {id:15,meal:'dinner',name:'蒜香橄榄油炒虾',emoji:'🦐',time:15,cal:380,protein:35,carbs:5,fat:24,
+   ingredients:['新鲜虾仁 200g','大蒜 4瓣','初榨橄榄油 2汤匙','柠檬汁 1汤匙','新鲜欧芹碎','干辣椒片（可选）','盐·黑胡椒'],
+   steps:['虾仁擦干水分（炒时不溅油）','橄榄油热锅，下蒜片和辣椒小火爆香（勿焦）','转大火，下虾仁翻炒2分钟至变色','淋柠檬汁，再炒30秒','撒欧芹碎，配全麦面包或藜麦'],
+   tags:['快手','高蛋白','低碳水','鲜美']},
+
+  {id:16,meal:'dinner',name:'普罗旺斯番茄炖鳕鱼',emoji:'🐡',time:30,cal:400,protein:42,carbs:16,fat:16,
+   ingredients:['鳕鱼柳 200g','番茄 3个','洋葱 ½个','大蒜 3瓣','橄榄油 1汤匙','卡拉马塔橄榄 30g','刺山柑 1汤匙','新鲜欧芹','白葡萄酒 2汤匙（可省）'],
+   steps:['橄榄油爆香大蒜和洋葱（3分钟）','加番茄丁和橄榄，中火煮10分钟至酱汁浓缩','放入鳕鱼柳，加刺山柑和白葡萄酒','小火盖锅炖12-15分钟','撒欧芹出锅'],
+   tags:['地中海经典','高蛋白','Omega-3','深海鱼']},
+
+  {id:17,meal:'dinner',name:'鹰嘴豆菠菜番茄炖',emoji:'🫘',time:25,cal:360,protein:17,carbs:44,fat:12,
+   ingredients:['鹰嘴豆罐头 200g（沥水）','新鲜菠菜 100g','番茄 2个','洋葱 ½个','大蒜 2瓣','橄榄油 1汤匙','孜然·烟熏红椒粉各½茶匙','柠檬汁少许'],
+   steps:['橄榄油爆香洋葱大蒜（3分钟）','加香料炒30秒至出香，下番茄丁炒软','加鹰嘴豆和100ml水，煮10分钟','最后加菠菜炖至软，淋柠檬汁调味'],
+   tags:['纯素','植物蛋白','高纤维','暖胃']},
+
+  {id:18,meal:'dinner',name:'孜然烤羊肉串配藜麦',emoji:'🍢',time:40,cal:560,protein:46,carbs:38,fat:24,
+   ingredients:['羊腿肉 180g','藜麦 80g','大蒜 2瓣','橄榄油 1汤匙','孜然·干牛至·红椒粉各适量','柠檬汁少许','希腊酸奶蒜酱（酸奶+蒜+柠檬汁）'],
+   steps:['羊肉切3cm块，用橄榄油、蒜末、香料、柠檬汁腌制30分钟','穿入竹签（提前泡水），铺烤盘','烤箱200°C烤20分钟，中途翻面','藜麦用1:2水煮15分钟','配希腊酸奶蒜酱食用'],
+   tags:['高蛋白','增肌','节日感','地中海风味']},
+
+  // 零食
+  {id:19,meal:'snack',name:'混合坚果小食',emoji:'🥜',time:2,cal:180,protein:5,carbs:8,fat:15,
+   ingredients:['核桃仁 15g','生杏仁 15g','腰果 10g'],
+   steps:['称量坚果混合','直接食用，不需要任何处理'],
+   tags:['健康脂肪','随身','无需烹饪','脑力支持']},
+
+  {id:20,meal:'snack',name:'希腊酸奶鲜果杯',emoji:'🍓',time:5,cal:200,protein:12,carbs:22,fat:5,
+   ingredients:['希腊酸奶 150g','草莓或蓝莓 80g','蜂蜜 1茶匙'],
+   steps:['希腊酸奶装入杯中','放上新鲜水果','淋少量蜂蜜即可'],
+   tags:['高蛋白','下午茶','益生菌','低脂']},
+
+  {id:21,meal:'snack',name:'全麦饼干配鹰嘴豆泥',emoji:'🫒',time:3,cal:220,protein:7,carbs:24,fat:10,
+   ingredients:['全麦脆饼 5片','自制或购买的鹰嘴豆泥 60g','卡拉马塔橄榄 8个'],
+   steps:['取适量鹰嘴豆泥装入小碗','橄榄沥水备用','配脆饼直接食用'],
+   tags:['植物蛋白','饱腹','快手','下午茶']}
+];
+
+// ─── 状态 ─────────────────────────────────────────────────
+let curFilter = 'all';
+let apiKey = '';
+let deferredInstallPrompt = null;
+
+function getLocalDateKey(prefix) {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return prefix + y + '-' + m + '-' + day;
+}
+
+function getProfileTargets(profile) {
+  const h = Number(profile?.h);
+  const w = Number(profile?.w);
+  if (!h || !w) {
+    return {calories:2100, protein:158, carbs:240, fat:65};
+  }
+  const bmr = 88.36 + 13.4 * w + 4.8 * h - 5.7 * 30;
+  const tdee = Math.round(bmr * 1.55);
+  const calories = tdee + 200;
+  const protein = Math.round(w * 2.0);
+  const fat = Math.max(45, Math.round(w * 0.9));
+  const carbs = Math.max(120, Math.round((calories - protein * 4 - fat * 9) / 4));
+  return {calories, protein, carbs, fat};
+}
+
+function applyTargets(targets) {
+  document.getElementById('cal-num').textContent = targets.calories;
+  document.getElementById('macro-protein').textContent = targets.protein + 'g';
+  document.getElementById('macro-carbs').textContent = targets.carbs + 'g';
+  document.getElementById('macro-fat').textContent = targets.fat + 'g';
+}
+
+function setInstallMessage(message, installed) {
+  const el = document.getElementById('install-msg');
+  el.textContent = message;
+  el.classList.toggle('ok', Boolean(installed));
+}
+
+function setupInstallPrompt() {
+  const btn = document.getElementById('install-btn');
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  if (isStandalone) {
+    btn.hidden = true;
+    setInstallMessage('已安装到主屏幕，之后可以像 App 一样直接打开。', true);
+  } else {
+    setInstallMessage('iPhone Safari：点底部分享按钮，再选“添加到主屏幕”。', false);
+  }
+
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    btn.hidden = false;
+    setInstallMessage('当前设备支持一键安装，点下面按钮即可添加到主屏幕。', false);
+  });
+
+  btn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      setInstallMessage('安装请求已提交，完成后就能从主屏幕打开。', true);
+    }
+    deferredInstallPrompt = null;
+    btn.hidden = true;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    btn.hidden = true;
+    setInstallMessage('安装成功，之后可以直接从主屏幕打开。', true);
+  });
+}
+
+async function registerPWA() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    await navigator.serviceWorker.register('./service-worker.js');
+  } catch (error) {
+    console.warn('Service Worker 注册失败：', error);
+  }
+}
+
+// ─── 初始化 ───────────────────────────────────────────────
+function init() {
+  apiKey = localStorage.getItem('gkey') || '';
+  const p = JSON.parse(localStorage.getItem('profile') || '{}');
+  if (p.h) document.getElementById('s-h').value = p.h;
+  if (p.w) document.getElementById('s-w').value = p.w;
+  if (apiKey) document.getElementById('s-key').value = apiKey;
+
+  applyTargets(getProfileTargets(p));
+
+  const saved = localStorage.getItem(getLocalDateKey('plan_'));
+  if (saved) renderMeals(JSON.parse(saved));
+
+  const exSaved = localStorage.getItem(getLocalDateKey('ex_'));
+  if (exSaved) showExOut(exSaved);
+
+  updateHeader();
+  renderRecipes(RECIPES);
+  setupInstallPrompt();
+  registerPWA();
+
+  const CHIPS = ['三文鱼','鸡蛋','西红柿','菠菜','鳄梨','藜麦','鹰嘴豆','希腊酸奶','橄榄油','全麦面包','金枪鱼','虾仁'];
+  document.getElementById('chips').innerHTML = CHIPS.map(c =>
+    `<span class="chip" onclick="addIng('${c}')">${c}</span>`).join('');
+}
+
+function updateHeader() {
+  const h = new Date().getHours();
+  const g = h < 6 ? '夜深了' : h < 10 ? '早上好 ☀️' : h < 14 ? '中午好 🌤' : h < 18 ? '下午好 🍵' : '晚上好 🌙';
+  const d = new Date();
+  const days = ['日','一','二','三','四','五','六'];
+  document.getElementById('h-title').textContent = g;
+  document.getElementById('h-sub').textContent = `${d.getMonth()+1}月${d.getDate()}日 · 星期${days[d.getDay()]} · 增肌维持计划`;
+}
+
+// ─── Tab ──────────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + t).classList.add('active');
+  document.getElementById('tab-' + t).classList.add('active');
+}
+
+// ─── 菜谱 ─────────────────────────────────────────────────
+function renderRecipes(list) {
+  const g = document.getElementById('rgrid');
+  if (!list.length) {
+    g.innerHTML = '<div class="empty" style="grid-column:span 2"><div class="empty-icon">🔍</div><div class="empty-text">没有找到匹配的菜谱</div></div>';
+    return;
+  }
+  g.innerHTML = list.map(r => `
+    <div class="rcard" onclick="openR(${r.id})">
+      <div class="rcard-emoji">${r.emoji}</div>
+      <div class="rcard-body">
+        <div class="rcard-name">${r.name}</div>
+        <div class="rcard-meta">⏱ ${r.time}分钟 &nbsp;🔥 ${r.cal} kcal</div>
+        <div class="rcard-meta">蛋白质 ${r.protein}g</div>
+      </div>
+    </div>`).join('');
+}
+
+function filterR() {
+  const q = document.getElementById('q').value.toLowerCase().trim();
+  let list = RECIPES;
+  if (curFilter !== 'all') list = list.filter(r => r.meal === curFilter);
+  if (q) list = list.filter(r =>
+    r.name.includes(q) ||
+    r.tags.some(t => t.includes(q)) ||
+    r.ingredients.some(i => i.toLowerCase().includes(q)));
+  renderRecipes(list);
+}
+
+function setFilter(f, btn) {
+  curFilter = f;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterR();
+}
+
+function openR(id) {
+  const r = RECIPES.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('rm-body').innerHTML = `
+    <div style="font-size:52px;text-align:center;margin-bottom:14px">${r.emoji}</div>
+    <h2 style="font-size:20px;font-weight:700;text-align:center;line-height:1.3">${r.name}</h2>
+    <div style="display:flex;justify-content:center;gap:16px;margin:10px 0;font-size:13px;color:var(--text2)">
+      <span>⏱ ${r.time} 分钟</span><span>🔥 ${r.cal} kcal</span>
+    </div>
+    <div class="macros" style="margin:12px 0">
+      <div class="macro"><div class="macro-v" style="color:var(--green)">${r.protein}g</div><div class="macro-l">蛋白质</div></div>
+      <div class="macro"><div class="macro-v" style="color:var(--gold)">${r.carbs}g</div><div class="macro-l">碳水</div></div>
+      <div class="macro"><div class="macro-v" style="color:#c05010">${r.fat}g</div><div class="macro-l">脂肪</div></div>
+    </div>
+    <div class="tags">${r.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+    <div class="div"></div>
+    <p style="font-size:14px;font-weight:600;margin-bottom:10px">🛒 食材清单</p>
+    ${r.ingredients.map(i => `<div style="font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">· ${i}</div>`).join('')}
+    <div class="div"></div>
+    <p style="font-size:14px;font-weight:600;margin-bottom:12px">👨‍🍳 烹饪步骤</p>
+    ${r.steps.map((s,i) => `
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="min-width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">${i+1}</div>
+        <div style="font-size:13px;line-height:1.7;padding-top:2px">${s}</div>
+      </div>`).join('')}
+    <div style="height:24px"></div>`;
+  document.getElementById('rm').classList.add('open');
+}
+
+function closeRM(e) {
+  if (e.target.id === 'rm') document.getElementById('rm').classList.remove('open');
+}
+
+// ─── Gemini API ───────────────────────────────────────────
+async function callAI(prompt) {
+  if (!apiKey) {
+    alert('请先在「我的」页面填入 Gemini API Key 🔑');
+    switchTab('settings');
+    return null;
+  }
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({
+       contents:[{parts:[{text:prompt}]}],
+       generationConfig:{temperature:0.72,maxOutputTokens:2048}
+     })}
+  );
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error?.message || `请求失败 (${res.status})`);
+  }
+  const d = await res.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+// ─── 今日三餐 AI 生成 ────────────────────────────────────
+async function genDay() {
+  const btn = document.getElementById('btn-day');
+  btn.innerHTML = '<span class="spin"></span>AI 规划中...';
+  btn.disabled = true;
+  try {
+    const names = RECIPES.filter(r => r.meal !== 'snack').map(r =>
+      `${r.name}（${r.meal==='breakfast'?'早':r.meal==='lunch'?'午':'晚'}，${r.cal}kcal，蛋白质${r.protein}g）`).join('\n');
+
+    const text = await callAI(`你是专业地中海饮食营养师。请从以下菜谱库中为用户规划今日三餐。
+
+用户档案：26-35岁，目标增肌+维持体重，每日热量约2100kcal，蛋白质目标≥150g，无忌口。
+
+菜谱库：
+${names}
+
+要求：早餐1道 + 午餐1道 + 晚餐1道，确保三餐蛋白质总量尽量达到140g+。
+另提供1条简短加餐建议（非菜谱库，简单组合即可）。
+
+请严格按以下格式回复（冒号后直接写菜名，不加任何前缀）：
+早餐：[菜谱名]
+午餐：[菜谱名]
+晚餐：[菜谱名]
+加餐：[一句话建议]
+点评：[50字以内，包含今日预计蛋白质摄入评价，语气温和鼓励]`);
+
+    if (!text) return;
+    const plan = parsePlan(text);
+    localStorage.setItem(getLocalDateKey('plan_'), JSON.stringify(plan));
+    renderMeals(plan);
+  } catch(e) {
+    alert('生成失败：' + e.message);
+  } finally {
+    btn.innerHTML = '🔄 重新规划今日三餐';
+    btn.disabled = false;
+  }
+}
+
+function parsePlan(text) {
+  const lines = text.split('\n');
+  const get = key => {
+    const l = lines.find(x => x.startsWith(key));
+    return l ? l.replace(key, '').trim() : '';
+  };
+  return {
+    breakfast: get('早餐：') || get('早餐:'),
+    lunch: get('午餐：') || get('午餐:'),
+    dinner: get('晚餐：') || get('晚餐:'),
+    snack: get('加餐：') || get('加餐:'),
+    comment: get('点评：') || get('点评:')
+  };
+}
+
+function renderMeals(plan) {
+  const meals = [
+    {type:'早餐', name:plan.breakfast, meal:'breakfast'},
+    {type:'午餐', name:plan.lunch, meal:'lunch'},
+    {type:'晚餐', name:plan.dinner, meal:'dinner'}
+  ];
+  const html = meals.map(m => {
+    const r = RECIPES.find(x => x.name === m.name || (m.name && m.name.includes(x.name)));
+    return `<div class="meal-row" onclick="${r ? `openR(${r.id})` : ''}">
+      <div class="meal-dot"></div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${m.type}：${m.name || '—'}</div>
+        <div style="font-size:12px;color:var(--text2)">${r ? `约 ${r.cal} kcal · 蛋白质 ${r.protein}g · 点击查看菜谱` : ''}</div>
+      </div>
+      ${r ? '<div style="color:var(--text2);font-size:20px;padding-left:4px">›</div>' : ''}
+    </div>`;
+  }).join('') +
+  (plan.snack ? `<div style="font-size:12px;color:var(--text2);padding:8px 0 2px">💡 加餐：${plan.snack}</div>` : '') +
+  (plan.comment ? `<div style="font-size:12px;color:var(--green);padding:8px 0 2px;border-top:1px solid var(--border);margin-top:6px;line-height:1.6">✨ ${plan.comment}</div>` : '');
+  document.getElementById('today-meals').innerHTML = html;
+}
+
+// ─── 食材规划 ─────────────────────────────────────────────
+function openIngModal() {
+  document.getElementById('im').classList.add('open');
+}
+
+function closeIM(e) {
+  if (e.target.id === 'im') {
+    document.getElementById('im').classList.remove('open');
+    document.getElementById('ing-out').innerHTML = '';
+  }
+}
+
+function addIng(item) {
+  const el = document.getElementById('ing');
+  el.value = el.value ? el.value + '、' + item : item;
+}
+
+async function genIng() {
+  const ing = document.getElementById('ing').value.trim();
+  if (!ing) {
+    alert('请输入你有的食材');
+    return;
+  }
+  const btn = document.getElementById('btn-ing');
+  btn.innerHTML = '<span class="spin"></span>AI 规划中...';
+  btn.disabled = true;
+  try {
+    const text = await callAI(`你是地中海饮食营养师。用户冰箱里有：${ing}
+（假设家里有基本调料：盐、黑胡椒、橄榄油、大蒜）
+
+请用这些食材为用户规划今日三餐，遵循地中海饮食原则（多蔬菜鱼豆，橄榄油为主要油脂）。
+用户26-35岁，目标增肌维持体重，蛋白质目标每日≥150g。
+
+格式：
+🌅 早餐：[菜名]
+做法：[2-3句简短步骤]
+
+☀️ 午餐：[菜名]
+做法：[2-3句简短步骤]
+
+🌙 晚餐：[菜名]
+做法：[2-3句简短步骤]
+
+💡 营养提示：[关于今日食材搭配的1-2句点评，提及蛋白质是否充足]`);
+    if (text) document.getElementById('ing-out').innerHTML = `<div class="ai-box">${text}</div>`;
+  } catch(e) {
+    alert('生成失败：' + e.message);
+  } finally {
+    btn.innerHTML = '✨ AI 生成今日菜单';
+    btn.disabled = false;
+  }
+}
+
+// ─── 运动计划 ─────────────────────────────────────────────
+function showExOut(text) {
+  document.getElementById('ex-out').innerHTML =
+    `<div class="card" style="margin-top:12px"><div class="card-title">AI 今日补充训练</div><div class="ai-box" style="background:var(--green-pale);border-color:var(--green2)">${text}</div></div>`;
+}
+
+async function genEx() {
+  const btn = document.getElementById('btn-ex');
+  btn.innerHTML = '<span class="spin"></span>AI 规划中...';
+  btn.disabled = true;
+  try {
+    const text = await callAI(`你是专业健身教练。用户情况：
+- 年龄：26-35岁，目标：增肌 + 维持体重
+- 已有晨起八段锦（约20分钟气功），暂无其他运动习惯
+- 偏好徒手训练，无器械限制
+
+请为今天制定「补充训练计划」，要求：
+• 总时长：30-40分钟
+• 以增肌为主，徒手为主（可加弹力带）
+• 分三部分：热身 → 主训练 → 拉伸
+• 每个动作：名称 + 组数×次数或时长 + 一句要点提示
+
+用简洁友好的格式输出，让用户一看就能按照执行。`);
+    if (text) {
+      localStorage.setItem(getLocalDateKey('ex_'), text);
+      showExOut(text);
+    }
+  } catch(e) {
+    alert('生成失败：' + e.message);
+  } finally {
+    btn.innerHTML = '🔄 重新生成训练计划';
+    btn.disabled = false;
+  }
+}
+
+// ─── 设置 ─────────────────────────────────────────────────
+function saveKey() {
+  const k = document.getElementById('s-key').value.trim();
+  if (!k.startsWith('AIza')) {
+    alert('Key 格式不对，应以 AIza 开头');
+    return;
+  }
+  apiKey = k;
+  localStorage.setItem('gkey', k);
+  alert('✅ API Key 保存成功！可以开始使用了');
+}
+
+function saveProfile() {
+  const h = parseFloat(document.getElementById('s-h').value);
+  const w = parseFloat(document.getElementById('s-w').value);
+  if (!h || !w) {
+    alert('请填写身高和体重');
+    return;
+  }
+  const profile = {h, w};
+  localStorage.setItem('profile', JSON.stringify(profile));
+  const targets = getProfileTargets(profile);
+  applyTargets(targets);
+  alert(`✅ 已保存！
+每日热量目标：${targets.calories} kcal
+蛋白质目标：${targets.protein}g
+（基于增肌轻微热量盈余）`);
+}
+
+function clearAll() {
+  if (confirm('确定要清除所有本地数据？包括 API Key 和今日计划')) {
+    localStorage.clear();
+    location.reload();
+  }
+}
+
+// ─── 启动 ─────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
