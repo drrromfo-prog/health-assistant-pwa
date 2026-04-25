@@ -640,26 +640,45 @@ function closeRM(e) {
 }
 
 // ─── Gemini API ───────────────────────────────────────────
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
 async function callAI(prompt) {
   if (!apiKey) {
     alert('请先在「我的」页面填入 Gemini API Key 🔑');
     switchTab('settings');
     return null;
   }
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    {method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({
-       contents:[{parts:[{text:prompt}]}],
-       generationConfig:{temperature:0.72,maxOutputTokens:2048}
-     })}
-  );
-  if (!res.ok) {
+
+  const payload = {
+    contents:[{parts:[{text:prompt}]}],
+    generationConfig:{temperature:0.72,maxOutputTokens:2048}
+  };
+
+  let lastError = null;
+  for (const model of GEMINI_MODELS) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {method:'POST',headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}
+    );
+
+    if (res.ok) {
+      const d = await res.json();
+      return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    }
+
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `请求失败 (${res.status})`);
+    const message = e.error?.message || `请求失败 (${res.status})`;
+    const canFallback = res.status === 404 || /not found|not supported for generateContent/i.test(message);
+
+    if (canFallback) {
+      lastError = new Error(`${model}: ${message}`);
+      continue;
+    }
+
+    throw new Error(message);
   }
-  const d = await res.json();
-  return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  throw lastError || new Error('当前没有可用的 Gemini 模型，请检查 API Key 或模型权限。');
 }
 
 // ─── 今日三餐 AI 生成 ────────────────────────────────────
